@@ -1,0 +1,80 @@
+version: '3.9'
+networks:
+  backend:
+  traefik:
+    external: true
+volumes:
+  postgres:
+  minio-data:
+services:
+  backend: &backend-template
+    image: backend:latest
+    build:
+      context: './backend'
+      target: 'dev'
+    volumes:
+      - './backend:/app'
+      - '/app/docker'
+    depends_on:
+      - postgres
+      - redis
+    env_file:
+      - './backend/.env.local'
+    networks:
+      - backend
+      - traefik
+    command:
+      - /bin/bash
+      - -c
+      - php artisan octane:start --host=0.0.0.0 --watch
+    labels:
+      traefik.enable: 'true'
+      traefik.docker.network: traefik
+      traefik.http.routers.backend.rule: Host(`api.example.test`)
+      traefik.http.services.backend.loadbalancer.server.port: 8000
+  websocket-server:
+    <<: *backend-template
+    labels:
+      traefik.enable: 'false'
+    environment:
+      XDEBUG_MODE: 'off'
+    ports:
+      - '6001:6001'
+    command:
+      - /bin/bash
+      - -c
+      - php artisan websockets:serve --port=6001
+  queue-default: &backend-worker-template
+    <<: *backend-template
+    labels:
+      traefik.enable: 'false'
+    environment:
+      XDEBUG_MODE: 'off'
+    command:
+      - /bin/bash
+      - -c
+      - php artisan queue:work --queue=default
+  queue-notifications:
+    <<: *backend-worker-template
+    labels:
+      traefik.enable: 'false'
+    command:
+      - /bin/bash
+      - -c
+      - php artisan queue:work --queue=notifications
+  postgres:
+    image: postgres:13.3-alpine
+    environment:
+      POSTGRES_USER: user
+      POSTGRES_PASSWORD: password
+      POSTGRES_DB: db
+    ports:
+      - '7733:5432'
+    volumes:
+      - 'postgres:/var/lib/postgresql/data'
+    networks:
+      - backend
+  redis:
+    image: redis:6.2.5-alpine
+    networks:
+      - backend

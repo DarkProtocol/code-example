@@ -1,0 +1,205 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: backend
+  annotations:
+    app.gitlab.com/app: $CI_PROJECT_PATH_SLUG
+    app.gitlab.com/env: $CI_ENVIRONMENT_SLUG
+spec:
+  selector:
+    matchLabels:
+      app: backend
+  replicas: 1
+  template:
+    metadata:
+      labels:
+        app: backend
+      annotations:
+        app.gitlab.com/app: $CI_PROJECT_PATH_SLUG
+        app.gitlab.com/env: $CI_ENVIRONMENT_SLUG
+    spec:
+      initContainers:
+        - name: migrations
+          image: $IMAGE_BACKEND
+          imagePullPolicy: $IMAGE_PULL_POLICY_BACKEND
+          command:
+            - /bin/bash
+            - -c
+            - php artisan migrate --force
+          envFrom:
+            - configMapRef:
+                name: config-backend
+        - name: rates
+          image: $IMAGE_BACKEND
+          imagePullPolicy: $IMAGE_PULL_POLICY_BACKEND
+          command:
+            - /bin/bash
+            - -c
+            - php artisan rates:update
+          envFrom:
+            - configMapRef:
+                name: config-backend
+        - name: tokensell-data
+          image: $IMAGE_BACKEND
+          imagePullPolicy: $IMAGE_PULL_POLICY_BACKEND
+          command:
+            - /bin/bash
+            - -c
+            - php artisan tokensell:update-data
+          envFrom:
+            - configMapRef:
+                name: config-backend
+        - name: generate-common-statistic
+          image: $IMAGE_BACKEND
+          imagePullPolicy: $IMAGE_PULL_POLICY_BACKEND
+          command:
+            - /bin/bash
+            - -c
+            - php artisan common:generate-common-statistic
+          envFrom:
+            - configMapRef:
+                name: config-backend
+      containers:
+        - name: backend-php
+          image: $IMAGE_BACKEND
+          imagePullPolicy: $IMAGE_PULL_POLICY_BACKEND
+          ports:
+            - containerPort: 8000
+          envFrom:
+            - configMapRef:
+                name: config-backend
+          resources:
+            requests:
+              cpu: 300m
+              memory: 128Mi
+            limits:
+              cpu: 500m
+              memory: 512Mi
+      imagePullSecrets:
+        - name: backend-gitlab-pull-secret
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: queue-default
+  annotations:
+    app.gitlab.com/app: $CI_PROJECT_PATH_SLUG
+    app.gitlab.com/env: $CI_ENVIRONMENT_SLUG
+spec:
+  selector:
+    matchLabels:
+      app: queue-default
+  replicas: 1
+  template:
+    metadata:
+      labels:
+        app: queue-default
+      annotations:
+        app.gitlab.com/app: $CI_PROJECT_PATH_SLUG
+        app.gitlab.com/env: $CI_ENVIRONMENT_SLUG
+    spec:
+      containers:
+        - name: queue-default
+          image: $IMAGE_BACKEND
+          imagePullPolicy: $IMAGE_PULL_POLICY_BACKEND
+          envFrom:
+            - configMapRef:
+                name: config-backend
+          command:
+            - /bin/bash
+            - -c
+            - php artisan queue:work redis --queue=default
+          resources:
+            limits:
+              cpu: 200m
+              memory: 256Mi
+      imagePullSecrets:
+        - name: backend-gitlab-pull-secret
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: queue-notifications
+  annotations:
+    app.gitlab.com/app: $CI_PROJECT_PATH_SLUG
+    app.gitlab.com/env: $CI_ENVIRONMENT_SLUG
+spec:
+  selector:
+    matchLabels:
+      app: queue-notifications
+  replicas: 1
+  template:
+    metadata:
+      labels:
+        app: queue-notifications
+      annotations:
+        app.gitlab.com/app: $CI_PROJECT_PATH_SLUG
+        app.gitlab.com/env: $CI_ENVIRONMENT_SLUG
+    spec:
+      containers:
+        - name: queue-notifications
+          image: $IMAGE_BACKEND
+          imagePullPolicy: $IMAGE_PULL_POLICY_BACKEND
+          envFrom:
+            - configMapRef:
+                name: config-backend
+          command:
+            - /bin/bash
+            - -c
+            - php artisan queue:work redis --queue=notifications
+          resources:
+            limits:
+              cpu: 200m
+              memory: 256Mi
+      imagePullSecrets:
+        - name: backend-gitlab-pull-secret
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: cron
+  annotations:
+    app.gitlab.com/app: $CI_PROJECT_PATH_SLUG
+    app.gitlab.com/env: $CI_ENVIRONMENT_SLUG
+spec:
+  selector:
+    matchLabels:
+      app: cron
+  replicas: 1
+  template:
+    metadata:
+      labels:
+        app: cron
+      annotations:
+        app.gitlab.com/app: $CI_PROJECT_PATH_SLUG
+        app.gitlab.com/env: $CI_ENVIRONMENT_SLUG
+    spec:
+      containers:
+        - name: cron
+          image: $IMAGE_BACKEND
+          imagePullPolicy: $IMAGE_PULL_POLICY_BACKEND
+          envFrom:
+            - configMapRef:
+                name: config-backend
+          command: ["/app/docker/entrypoint-cron.sh"]
+          args: ["su", "-c", "crond -f"]
+          resources:
+            limits:
+              cpu: 200m
+              memory: 256Mi
+      imagePullSecrets:
+        - name: backend-gitlab-pull-secret
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: backend
+  labels:
+    app: backend
+spec:
+  type: NodePort
+  ports:
+    - port: 8000
+      name: http
+  selector:
+    app: backend

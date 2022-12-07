@@ -1,0 +1,31 @@
+parameters:
+  level: 6
+  paths:
+    - .
+  excludePaths:
+    - ./bootstrap/cache/*
+    - ./public/*
+    - ./storage/*
+    - ./vendor/*
+  ignoreErrors:
+    # Laravel magic methods
+    - '#Call to an undefined static method Illuminate\\Support\\Facades\\Cookie::forget\(\)#'
+    - '#Call to an undefined static method Illuminate\\Support\\Facades\\Cookie::make\(\)#'
+    - '#Call to an undefined static method Illuminate\\Support\\Facades\\Lang::addNamespace\(\)#'
+    - '#Call to an undefined method Illuminate\\Database\\Eloquent\\Relations\\HasMany::where\(\)#'
+    - '#Call to an undefined method Illuminate\\Database\\Query\\Builder::firstOrFail\(\)#'
+    #
+    - '#Call to an undefined static method App\\Data\\Models\\[a-zA-Z]+::find\(\)#'
+    - '#Call to an undefined static method App\\Data\\Models\\[a-zA-Z]+::get\(\)#'
+    - '#Call to an undefined static method App\\Data\\Models\\[a-zA-Z]+::orderBy\(\)#'
+    - '#Call to an undefined static method App\\Data\\Models\\[a-zA-Z]+::where\(\)#'
+    - '#Call to an undefined static method App\\Data\\Models\\[a-zA-Z]+::whereIn\(\)#'
+    - '#Call to an undefined static method App\\Data\\Models\\[a-zA-Z]+::whereNotNull\(\)#'
+    - '#Call to an undefined static method App\\Data\\Models\\[a-zA-Z]+::whereRaw\(\)#'
+    # Project-specific
+    - '#Call to an undefined static method Illuminate\\Support\\Facades\\Auth::token\(\)#'
+    # TEMP
+    - '#Variable \$[a-zA-Z]+ in PHPDoc tag @var does not exist#'
+    - '#Unable to resolve the template type TKey in call to function collect#'
+    - '#Unable to resolve the template type TValue in call to function collect#'
+  checkGenericClassInNonGenericObjectType: false
